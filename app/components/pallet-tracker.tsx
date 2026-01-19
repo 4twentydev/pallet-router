@@ -2,11 +2,13 @@
 
 import { useState, useOptimistic, useTransition } from 'react';
 import { motion } from 'framer-motion';
-import { togglePalletStatus } from '../actions/pallets';
+import { Plus } from 'lucide-react';
+import { togglePalletStatus, getPalletData } from '../actions/pallets';
 import { filterPallets, groupByJobAndRelease } from '@/lib/excel/utils';
 import type { PalletData, FilterOptions } from '@/types/pallet';
 import FilterBar from './filter-bar';
 import JobGroup from './job-group';
+import AddPalletDialog from './add-pallet-dialog';
 
 export default function PalletTracker({ initialData }: { initialData: PalletData }) {
   const [data, setData] = useState(initialData);
@@ -21,6 +23,7 @@ export default function PalletTracker({ initialData }: { initialData: PalletData
   });
 
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
   // Apply filters and group pallets
   const filteredPallets = filterPallets(optimisticData.pallets, filters);
@@ -59,8 +62,25 @@ export default function PalletTracker({ initialData }: { initialData: PalletData
     });
   };
 
+  const handleAddPalletSuccess = async () => {
+    // Refresh the data after adding a new pallet
+    const freshData = await getPalletData();
+    setData(freshData);
+  };
+
   return (
     <div className="flex flex-col gap-6">
+      {/* Add Pallet Button */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setIsAddDialogOpen(true)}
+          className="button-pad btn-primary flex items-center gap-2 rounded-full text-sm font-semibold text-white transition-all hover:brightness-95"
+        >
+          <Plus className="h-4 w-4" />
+          Add Pallet
+        </button>
+      </div>
+
       {/* Filter Bar */}
       <FilterBar
         filters={filters}
@@ -93,6 +113,13 @@ export default function PalletTracker({ initialData }: { initialData: PalletData
           ))
         )}
       </div>
+
+      {/* Add Pallet Dialog */}
+      <AddPalletDialog
+        open={isAddDialogOpen}
+        onClose={() => setIsAddDialogOpen(false)}
+        onSuccess={handleAddPalletSuccess}
+      />
     </div>
   );
 }

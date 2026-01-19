@@ -1,8 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { getPallets, updatePalletMade, bulkUpdatePalletsMade } from '@/lib/db/queries';
+import { getPallets, updatePalletMade, bulkUpdatePalletsMade, insertPallet } from '@/lib/db/queries';
 import type { ServerActionResult } from '@/types/pallet';
+import type { NewPallet } from '@/lib/db';
 
 /**
  * Server Action to get all pallet data from database
@@ -104,6 +105,58 @@ export async function bulkTogglePallets(
       success: false,
       error: 'unknown',
       message: 'An unexpected error occurred while updating the pallets.',
+    };
+  }
+}
+
+/**
+ * Server Action to add a new pallet manually
+ */
+export async function addPallet(
+  palletData: Omit<NewPallet, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<ServerActionResult> {
+  console.log('[addPallet] Adding new pallet:', palletData);
+
+  try {
+    // Insert the new pallet
+    await insertPallet({
+      jobNumber: palletData.jobNumber,
+      releaseNumber: palletData.releaseNumber,
+      palletNumber: palletData.palletNumber,
+      size: palletData.size || '',
+      elevation: palletData.elevation || '',
+      made: palletData.made || false,
+      accList: palletData.accList || '',
+      shippedDate: palletData.shippedDate || '',
+      notes: palletData.notes || '',
+    });
+
+    console.log('[addPallet] Pallet added successfully');
+
+    // Get fresh data
+    const data = await getPallets();
+
+    revalidatePath('/');
+
+    return {
+      success: true,
+      data,
+    };
+  } catch (error) {
+    console.error('[addPallet] ERROR:', error);
+
+    if (error instanceof Error) {
+      return {
+        success: false,
+        error: 'unknown',
+        message: `Error: ${error.message}`,
+      };
+    }
+
+    return {
+      success: false,
+      error: 'unknown',
+      message: 'An unexpected error occurred while adding the pallet.',
     };
   }
 }
