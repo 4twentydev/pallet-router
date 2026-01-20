@@ -1,36 +1,137 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Pallet Tracker
 
-## Getting Started
+A modern manufacturing pallet tracking application built with Next.js, integrating with Microsoft OneDrive for real-time data synchronization.
 
-First, run the development server:
+## Features
+
+- 📊 **OneDrive Integration**: Excel file on OneDrive as single source of truth
+- 🔄 **Automatic Sync**: Periodic syncing every 2 minutes with manual sync option
+- 🔐 **Microsoft Authentication**: Secure OAuth login with Azure AD
+- ⚡ **Real-time Updates**: Instant UI updates with background sync to OneDrive
+- 🎨 **Modern UI**: Built with React 19, Tailwind CSS 4, and shadcn/ui components
+- 🌙 **Dark Mode**: Full light/dark theme support
+- 📱 **Responsive**: Works on desktop, tablet, and mobile devices
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 18+ and pnpm
+- Microsoft account with OneDrive
+- Azure AD App Registration (see setup guide)
+
+### Setup
+
+1. **Follow the detailed setup guide**: See [`ONEDRIVE_SETUP.md`](./ONEDRIVE_SETUP.md) for complete Azure AD configuration
+
+2. **Install dependencies**:
+   ```bash
+   pnpm install
+   ```
+
+3. **Configure environment variables**:
+   ```bash
+   cp .env.local.example .env.local
+   # Edit .env.local with your Azure AD credentials
+   ```
+
+4. **Upload Excel file to OneDrive**:
+   - Upload `Release-CheckList.xlsx` to your OneDrive root folder
+   - Ensure it has a sheet named `PalletTracker` with the correct structure
+
+5. **Start the development server**:
+   ```bash
+   pnpm dev
+   ```
+
+6. **Open the app**: Visit [http://localhost:3000](http://localhost:3000)
+
+7. **Sign in**: Click "Sign in with Microsoft" and authorize OneDrive access
+
+## How It Works
+
+### Data Flow
+
+1. **Authentication**: Users sign in with their Microsoft account using OAuth
+2. **OneDrive Access**: App gets permission to read/write Excel files on OneDrive
+3. **Data Loading**: Excel file is downloaded and parsed into pallet data
+4. **Local Cache**: Data is cached in memory for fast access
+5. **User Updates**: Changes are stored locally and synced to OneDrive every 2 minutes
+6. **Conflict Resolution**: OneDrive version takes precedence during sync
+
+### Technology Stack
+
+- **Frontend**: Next.js 16, React 19, TypeScript
+- **Styling**: Tailwind CSS 4, shadcn/ui components
+- **Authentication**: NextAuth.js with Azure AD
+- **Data Source**: Microsoft OneDrive (Excel via Graph API)
+- **Excel Processing**: ExcelJS
+
+## Documentation
+
+- **[ONEDRIVE_SETUP.md](./ONEDRIVE_SETUP.md)** - Complete setup guide for Azure AD and OneDrive
+- **[CLAUDE.md](./CLAUDE.md)** - Technical documentation and architecture guide
+- **[STYLE_GUIDE.md](./STYLE_GUIDE.md)** - UI design system and component patterns
+
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+# Start development server
 pnpm dev
-# or
-bun dev
+
+# Build for production
+pnpm build
+
+# Start production server
+pnpm start
+
+# Run linter
+pnpm lint
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Project Structure
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+app/
+  actions/          # Server actions for OneDrive operations
+  api/auth/         # NextAuth OAuth endpoints
+  components/       # React components
+lib/
+  auth.ts           # NextAuth configuration
+  onedrive/         # OneDrive integration layer
+    client.ts       # Microsoft Graph client
+    service.ts      # Excel read/write operations
+    sync-manager.ts # Periodic sync and caching
+types/
+  pallet.ts         # TypeScript type definitions
+  next-auth.d.ts    # NextAuth type extensions
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Troubleshooting
 
-## Learn More
+### Common Issues
 
-To learn more about Next.js, take a look at the following resources:
+**"Not authenticated" error**
+- Verify Azure AD credentials in `.env.local`
+- Try signing out and signing back in
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**"File not found" error**
+- Check that the Excel file exists on OneDrive
+- Verify `ONEDRIVE_FILE_PATH` matches the actual file path
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Permission errors**
+- Ensure `Files.ReadWrite.All` permission is granted in Azure Portal
+- Try revoking and re-granting consent
 
-## Deploy on Vercel
+See [ONEDRIVE_SETUP.md](./ONEDRIVE_SETUP.md) for detailed troubleshooting.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## License
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This project is proprietary software for Elward Systems.
+
+## Support
+
+For issues or questions, refer to:
+- Azure Portal for authentication configuration
+- Browser console for client-side errors
+- Server logs for backend issues

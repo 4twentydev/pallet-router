@@ -1,19 +1,37 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { getPallets, updatePalletMade, bulkUpdatePalletsMade } from '@/lib/db/queries';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { syncManager } from '@/lib/onedrive/sync-manager';
 import type { ServerActionResult } from '@/types/pallet';
 
 /**
- * Server Action to get all pallet data from database
+ * Gets the authenticated user's session
+ */
+async function getAuthenticatedSession() {
+  const session = await getServerSession(authOptions);
+  if (!session?.accessToken) {
+    throw new Error('Not authenticated. Please sign in to access OneDrive.');
+  }
+
+  // Initialize sync manager with access token
+  syncManager.initialize(session.accessToken);
+
+  return session;
+}
+
+/**
+ * Server Action to get all pallet data from OneDrive
  */
 export async function getPalletData() {
   try {
-    const data = await getPallets();
+    await getAuthenticatedSession();
+    const data = await syncManager.getPalletData();
     return data;
   } catch (error) {
     console.error('Failed to read pallet data:', error);
-    throw new Error('Failed to load pallet data from database.');
+    throw new Error('Failed to load pallet data from OneDrive.');
   }
 }
 
@@ -28,10 +46,13 @@ export async function togglePalletStatus(
   console.log('[togglePalletStatus] Starting:', { palletId, currentStatus, version });
 
   try {
+    await getAuthenticatedSession();
+
     const newStatus = !currentStatus;
     console.log('[togglePalletStatus] Writing new status:', newStatus);
 
-    const data = await updatePalletMade(palletId, newStatus, version);
+    await syncManager.updatePalletMade(palletId, newStatus);
+    const data = await syncManager.getPalletData();
     console.log('[togglePalletStatus] Update successful, pallets count:', data.pallets.length);
 
     revalidatePath('/');
@@ -47,11 +68,11 @@ export async function togglePalletStatus(
     if (error instanceof Error) {
       console.error('[togglePalletStatus] Error message:', error.message);
 
-      if (error.message.includes('not found')) {
+      if (error.message.includes('not found') || error.message.includes('Not authenticated')) {
         return {
           success: false,
           error: 'not_found',
-          message: `Pallet ${palletId} could not be found.`,
+          message: error.message,
         };
       }
 
@@ -79,7 +100,10 @@ export async function bulkTogglePallets(
   version: string
 ): Promise<ServerActionResult> {
   try {
-    const data = await bulkUpdatePalletsMade(palletIds, makeStatus, version);
+    await getAuthenticatedSession();
+
+    await syncManager.bulkUpdatePalletsMade(palletIds, makeStatus);
+    const data = await syncManager.getPalletData();
 
     revalidatePath('/');
 
@@ -91,7 +115,7 @@ export async function bulkTogglePallets(
     console.error('Failed to bulk update pallets:', error);
 
     if (error instanceof Error) {
-      if (error.message.includes('not found')) {
+      if (error.message.includes('not found') || error.message.includes('Not authenticated')) {
         return {
           success: false,
           error: 'not_found',
@@ -104,6 +128,33 @@ export async function bulkTogglePallets(
       success: false,
       error: 'unknown',
       message: 'An unexpected error occurred while updating the pallets.',
+    };
+  }
+}
+
+/**
+ * Server Action to force sync with OneDrive
+ */
+export async function forceSyncWithOneDrive(): Promise<ServerActionResult> {
+  try {
+    await getAuthenticatedSession();
+
+    await syncManager.forceSync();
+    const data = await syncManager.getPalletData();
+
+    revalidatePath('/');
+
+    return {
+      success: true,
+      data,
+    };
+  } catch (error) {
+    console.error('Failed to sync with OneDrive:', error);
+
+    return {
+      success: false,
+      error: 'unknown',
+      message: error instanceof Error ? error.message : 'Failed to sync with OneDrive',
     };
   }
 }

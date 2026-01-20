@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**pallet-tracker** is a Next.js 16+ application built with React 19, TypeScript, and Tailwind CSS 4. The project uses the App Router architecture and is configured with shadcn/ui components following the "New York" style variant. The application tracks manufacturing pallet data stored in a Vercel Postgres database.
+**pallet-tracker** is a Next.js 16+ application built with React 19, TypeScript, and Tailwind CSS 4. The project uses the App Router architecture and is configured with shadcn/ui components following the "New York" style variant. The application tracks manufacturing pallet data stored in an Excel file on Microsoft OneDrive.
+
+**Data Source**: The application uses **OneDrive** as the single source of truth, reading and writing to an Excel file (`Release-CheckList.xlsx`) via Microsoft Graph API. Data is cached in-memory and synced periodically (every 2 minutes).
 
 **Note**: The package.json lists the project name as "pallet-router" but the repository and application are referred to as "pallet-tracker".
 
@@ -12,38 +14,48 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Prerequisites
 - Node.js 18+ and pnpm installed
-- Vercel Postgres database (or compatible PostgreSQL database)
+- Microsoft account with OneDrive access
+- Azure AD App Registration (for OAuth authentication)
+- Excel file with pallet data on OneDrive
 
 ### Initial Setup
+
+**IMPORTANT**: Follow the detailed setup guide in `ONEDRIVE_SETUP.md` first to configure Azure AD authentication.
+
 1. Install dependencies:
    ```bash
    pnpm install
    ```
 
 2. Configure environment variables:
-   Create a `.env.local` file in the project root:
+   Create a `.env.local` file in the project root (see `.env.local.example`):
    ```env
-   POSTGRES_URL=your_postgres_connection_string
-   IMPORT_SECRET_KEY=optional_secret_for_import_api  # Optional
+   # Azure AD OAuth Configuration
+   AZURE_AD_CLIENT_ID=your_azure_client_id
+   AZURE_AD_CLIENT_SECRET=your_azure_client_secret
+   AZURE_AD_TENANT_ID=common
+
+   # NextAuth Configuration
+   NEXTAUTH_URL=http://localhost:3000
+   NEXTAUTH_SECRET=generate_with_openssl_rand_base64_32
+
+   # OneDrive Configuration
+   ONEDRIVE_FILE_PATH=/Release-CheckList.xlsx
    ```
 
-3. Set up the database schema:
-   ```bash
-   pnpm db:push
-   ```
+3. Upload your Excel file to OneDrive:
+   - File name: `Release-CheckList.xlsx`
+   - Location: Root folder of your OneDrive (or update `ONEDRIVE_FILE_PATH`)
+   - Required sheet: `PalletTracker` with specific column structure
 
-4. (Optional) Import initial data from Excel:
-   ```bash
-   # Ensure data/Release-CheckList.xlsx exists first
-   curl -X POST http://localhost:3000/api/import
-   ```
-
-5. Start the development server:
+4. Start the development server:
    ```bash
    pnpm dev
    ```
 
-   Open [http://localhost:3000](http://localhost:3000) to view the application.
+5. Open [http://localhost:3000](http://localhost:3000) and sign in with your Microsoft account
+
+6. Your pallet data will load automatically from OneDrive!
 
 ## Development Commands
 
@@ -90,7 +102,10 @@ pnpm db:studio
 - **Framework**: Next.js 16.1.1 with App Router
 - **React**: Version 19.2.3
 - **TypeScript**: Version 5
-- **Database**: Vercel Postgres with Drizzle ORM 0.45.1
+- **Data Source**: Microsoft OneDrive (Excel file via Graph API)
+- **Authentication**: NextAuth.js 4.24 with Azure AD OAuth
+- **Excel Processing**: ExcelJS 4.4.0
+- **Microsoft Graph**: @microsoft/microsoft-graph-client 3.0.7
 - **Styling**: Tailwind CSS 4 with custom theme
 - **UI Components**: shadcn/ui (New York style)
 - **Fonts**: Geist Sans and Geist Mono from next/font/google
@@ -98,16 +113,22 @@ pnpm db:studio
 - **Validation**: Zod
 - **Date Utilities**: date-fns
 
+**Legacy (Optional)**:
+- Vercel Postgres with Drizzle ORM 0.45.1 (can be removed if not needed)
+
 ### Directory Structure
 ```
 app/
-  layout.tsx          # Root layout with font configuration
-  page.tsx            # Home page
+  layout.tsx          # Root layout with SessionProvider
+  page.tsx            # Home page with authentication check
   globals.css         # Global styles and Tailwind config
   actions/            # Next.js Server Actions
-    pallets.ts        # Server actions for pallet data operations
+    pallets.ts        # Server actions for OneDrive pallet operations
   api/                # API Routes
-    import/           # Excel import endpoint
+    auth/             # NextAuth OAuth endpoints
+      [...nextauth]/
+        route.ts      # NextAuth API route handler
+    import/           # Legacy Excel import endpoint (optional)
       route.ts
   components/         # Feature-specific UI components
     pallet-tracker.tsx
@@ -118,22 +139,29 @@ app/
     conflict-dialog.tsx
     progress-indicator.tsx
     theme-toggle.tsx
+    session-provider.tsx  # NextAuth session provider wrapper
+    auth-status.tsx       # Authentication status and controls
 lib/
+  auth.ts             # NextAuth configuration with Azure AD
   utils.ts            # Utility functions (cn helper)
-  db/                 # Database configuration and queries
+  onedrive/           # OneDrive integration layer
+    client.ts         # Microsoft Graph client utilities
+    service.ts        # OneDrive Excel read/write operations
+    sync-manager.ts   # Periodic sync and caching logic
+  db/                 # Legacy database layer (optional)
     index.ts          # Drizzle client initialization
     schema.ts         # Database schema definition
     queries.ts        # Database query functions
-  excel/              # Excel import/export utilities
+  excel/              # Excel parsing utilities
     reader.ts
     writer.ts
     utils.ts
     server-utils.ts
 types/
   pallet.ts           # TypeScript type definitions
+  next-auth.d.ts      # NextAuth type extensions
 components/           # shadcn/ui components
   ui/                 # UI component directory (created when first shadcn component is added)
-drizzle/              # Database migrations (created after first `pnpm db:generate`)
 ```
 
 ### Path Aliases
@@ -212,62 +240,80 @@ import { cn } from "@/lib/utils"
 
 ## Application Architecture
 
-### Data Flow & Database Integration
-This application manages pallet tracking data stored in a Vercel Postgres database using Drizzle ORM.
+### Data Flow & OneDrive Integration
+This application manages pallet tracking data stored in an Excel file on Microsoft OneDrive, accessed via Microsoft Graph API.
 
 **Key Architecture Patterns:**
 
-1. **Database as Source of Truth**: The Vercel Postgres database is the single source of truth. All reads and writes go through Drizzle ORM queries defined in `lib/db/queries.ts`.
+1. **OneDrive as Source of Truth**: An Excel file (`Release-CheckList.xlsx`) on OneDrive is the single source of truth. All reads and writes go through Microsoft Graph API via `lib/onedrive/service.ts`.
 
-2. **Server Actions for Data Mutations**: All data operations (reading, updating) are handled via Next.js Server Actions in `app/actions/pallets.ts`:
-   - `getPalletData()` - Reads all pallet data from database
-   - `togglePalletStatus()` - Toggles a single pallet's "Made" status
-   - `bulkTogglePallets()` - Bulk updates multiple pallets
+2. **OAuth Authentication**: Users authenticate via NextAuth.js with Azure AD OAuth:
+   - Configuration in `lib/auth.ts`
+   - API routes in `app/api/auth/[...nextauth]/route.ts`
+   - Session management via `SessionProvider` in layout
+   - Access tokens are automatically refreshed when expired
 
-3. **Database Schema** (`lib/db/schema.ts`):
-   - Table: `pallets`
-   - Columns:
-     - `id` (serial, primary key)
-     - `jobNumber` (text, required)
-     - `releaseNumber` (text, required)
-     - `palletNumber` (text, required)
-     - `size` (text, optional)
-     - `elevation` (text, optional)
-     - `made` (boolean, default false)
-     - `accList` (text, optional - accessories list)
-     - `shippedDate` (text, optional)
-     - `notes` (text, optional)
-     - `createdAt` (timestamp, auto-generated)
-     - `updatedAt` (timestamp, auto-updated)
+3. **Periodic Sync Architecture**: Data is cached in-memory and synced every 2 minutes:
+   - **Sync Manager** (`lib/onedrive/sync-manager.ts`): Singleton that manages caching and periodic syncing
+   - **Cache**: In-memory storage of pallet data for fast reads
+   - **Pending Changes**: Local modifications are batched and written to OneDrive on next sync
+   - **Auto-Sync**: Background timer syncs every 2 minutes automatically
+   - **Manual Sync**: Users can trigger immediate sync via "Sync Now" button
 
-4. **Type Safety**: The `types/pallet.ts` file defines all domain types:
+4. **Server Actions for Data Operations** (`app/actions/pallets.ts`):
+   - `getPalletData()` - Reads pallet data (from cache or OneDrive)
+   - `togglePalletStatus()` - Toggles a single pallet's "Made" status (cached, synced later)
+   - `bulkTogglePallets()` - Bulk updates multiple pallets (cached, synced later)
+   - `forceSyncWithOneDrive()` - Forces immediate sync with OneDrive
+   - All actions require authenticated session with valid access token
+
+5. **Excel File Structure**:
+   - **File Name**: `Release-CheckList.xlsx` (configurable via `ONEDRIVE_FILE_PATH`)
+   - **Sheet Name**: `PalletTracker` (required)
+   - **Columns**:
+     1. Job Number (text, required)
+     2. Release Number (text, required)
+     3. Pallet Number (text, required)
+     4. Size (text, optional)
+     5. Elevation (text, optional)
+     6. Made (text, "X" = completed, empty = pending)
+     7. Acc List (text, optional - accessories list)
+     8. Shipped Date (text, optional)
+     9. Notes (text, optional)
+
+6. **Type Safety**: The `types/pallet.ts` file defines all domain types:
    - `PalletTask` - Individual pallet item with computed status
    - `JobGroup` - Grouped pallets by job/release with progress metrics
    - `PalletData` - Full dataset with metadata
-   - `FileMetadata` - Metadata for versioning (legacy interface from Excel-based system, maintained for backwards compatibility)
+   - `FileMetadata` - Metadata for versioning (mtime, version hash, readOnly flag)
    - `ServerActionResult<T>` - Standardized server action response
 
-5. **Pallet ID Format**: `${jobNumber}::${releaseNumber}::${palletNumber}`
+7. **Pallet ID Format**: `${jobNumber}::${releaseNumber}::${palletNumber}`
    - Uses `::` delimiter to handle hyphens in release numbers
-   - Parsed in database queries to identify individual pallets
+   - Uniquely identifies each pallet across the system
    - Example: `"24-101::R1::1"` represents Job 24-101, Release R1, Pallet 1
 
-6. **Versioning**: Server actions accept a `version` parameter for potential conflict detection:
-   - `metadata.version` contains a timestamp string generated on each read
-   - Server actions accept `expectedVersion` parameter (legacy interface)
-   - **Note**: Version checking is not currently enforced in database queries; updates always succeed
+### OneDrive Layer (`lib/onedrive/`)
 
-### Database Layer (`lib/db/`)
+**`lib/onedrive/client.ts`**: Microsoft Graph API client utilities
+- `createGraphClient()` - Creates authenticated Graph client
+- `getFileIdByPath()` - Resolves OneDrive file path to file ID
+- `downloadFile()` - Downloads Excel file content from OneDrive
+- `uploadFile()` - Uploads modified Excel file to OneDrive
+- `getFileMetadata()` - Gets file modification time and size
 
-**`lib/db/index.ts`**: Drizzle client initialization
-```typescript
-import { drizzle } from 'drizzle-orm/vercel-postgres';
-export const db = drizzle(sql, { schema });
-```
+**`lib/onedrive/service.ts`**: Excel file read/write operations
+- `readPalletDataFromOneDrive()` - Downloads and parses Excel file to pallet data
+- `writePalletDataToOneDrive()` - Updates Excel file with new pallet data
+- `updatePalletMadeOnOneDrive()` - Updates single pallet's "Made" status
+- `bulkUpdatePalletsMadeOnOneDrive()` - Bulk updates multiple pallets
+- Uses ExcelJS to parse and modify Excel workbooks
 
-**`lib/db/schema.ts`**: Database table definitions using Drizzle ORM
-- Exports `pallets` table schema
-- Exports inferred types: `Pallet`, `NewPallet`
+**`lib/onedrive/sync-manager.ts`**: Periodic sync and caching logic
+- Singleton service managing in-memory cache
+- Automatic periodic sync every 2 minutes
+- Batches local changes and writes to OneDrive
+- Provides sync status and manual sync trigger
 
 **`lib/db/queries.ts`**: Database query functions
 - `getPallets()` - Fetches all pallets, converts to `PalletTask[]`
@@ -277,23 +323,35 @@ export const db = drizzle(sql, { schema });
 - `insertPallets()` - Batch inserts (used for Excel import)
 - `deleteAllPallets()` - Truncates pallets table (used before re-import)
 
+### Authentication Layer (`lib/auth.ts`)
+
+**NextAuth Configuration**:
+- Provider: Azure AD (Microsoft OAuth)
+- Scopes: `openid profile email User.Read Files.ReadWrite.All offline_access`
+- Token Management: Automatic token refresh on expiration
+- Callbacks: JWT callback persists access tokens, session callback exposes them to client
+
 ### Configuration Files
 
-**`drizzle.config.ts`**: Drizzle Kit configuration
-```typescript
-{
-  schema: './lib/db/schema.ts',
-  out: './drizzle',
-  dialect: 'postgresql',
-  dbCredentials: {
-    url: process.env.POSTGRES_URL!
-  }
-}
+**`.env.local`** (Required environment variables):
+```env
+# Azure AD OAuth (required for OneDrive access)
+AZURE_AD_CLIENT_ID=your_azure_client_id
+AZURE_AD_CLIENT_SECRET=your_azure_client_secret
+AZURE_AD_TENANT_ID=common  # Use "common" for personal Microsoft accounts
+
+# NextAuth (required for authentication)
+NEXTAUTH_URL=http://localhost:3000  # Update for production
+NEXTAUTH_SECRET=generate_with_openssl_rand_base64_32
+
+# OneDrive file path (optional, defaults to /Release-CheckList.xlsx)
+ONEDRIVE_FILE_PATH=/Release-CheckList.xlsx
+
+# Legacy (optional, can be removed if not using Postgres)
+# POSTGRES_URL=your_postgres_connection_string
 ```
 
-**Environment Variables**:
-- `POSTGRES_URL` - Vercel Postgres connection string (required)
-- `IMPORT_SECRET_KEY` - Optional secret key to protect the Excel import API endpoint (recommended for production)
+**See `ONEDRIVE_SETUP.md`** for detailed Azure AD app registration and configuration instructions.
 
 ### Component Structure
 Components in `app/components/` are feature-specific and follow these patterns:
@@ -305,21 +363,37 @@ Components in `app/components/` are feature-specific and follow these patterns:
 - **conflict-dialog.tsx**: Handles conflicts when data changes externally
 - **progress-indicator.tsx**: Visual progress bars for job completion
 - **theme-toggle.tsx**: Light/dark theme switcher
+- **session-provider.tsx**: NextAuth session provider wrapper for client components
+- **auth-status.tsx**: Authentication status display with sign in/out and manual sync controls
 
-### Data Import Flow
-The application supports importing Excel files to populate the database:
+### Data Sync Flow
+The application syncs data with OneDrive on a periodic schedule:
 
-1. **Excel Import API** (`app/api/import/route.ts`):
-   - Reads Excel file from `data/Release-CheckList.xlsx`
-   - Parses data using ExcelJS
-   - Clears existing database records via `deleteAllPallets()`
-   - Batch inserts new records via `insertPallets()`
-   - Protected by optional `IMPORT_SECRET_KEY` environment variable
+1. **Initial Load**:
+   - User signs in with Microsoft account
+   - App downloads Excel file from OneDrive
+   - Parses data and stores in memory cache
+   - Displays pallet data in UI
 
-   **Usage:**
-   ```bash
-   # Import Excel data (without authentication)
-   curl -X POST http://localhost:3000/api/import
+2. **User Updates**:
+   - User marks pallets as completed
+   - Changes are stored in local cache immediately
+   - UI updates instantly for responsiveness
+   - Changes marked as "dirty" for next sync
+
+3. **Periodic Sync** (every 2 minutes):
+   - Sync manager checks for pending changes
+   - Writes all changes to OneDrive Excel file
+   - Reads latest data from OneDrive
+   - Updates cache with fresh data
+   - Resolves any conflicts (OneDrive wins)
+
+4. **Manual Sync**:
+   - User clicks "Sync Now" button
+   - Triggers immediate sync cycle
+   - Shows syncing status in UI
+
+**Conflict Resolution**: If the file was modified externally (e.g., opened in Excel), the OneDrive version takes precedence during sync
 
    # Import Excel data (with authentication if IMPORT_SECRET_KEY is set)
    curl -X POST http://localhost:3000/api/import \
@@ -400,12 +474,14 @@ export const metadata: Metadata = {
 
 ## Best Practices
 
-### Database Operations
-- Always use server actions for database mutations
-- Use Drizzle queries from `lib/db/queries.ts` instead of raw SQL
-- Handle database errors gracefully with try/catch
+### OneDrive Operations
+- Always use server actions for data mutations (never call OneDrive directly from client)
+- Ensure user is authenticated before accessing OneDrive (check session in server actions)
+- Use the sync manager (`lib/onedrive/sync-manager.ts`) for all data operations
+- Handle OneDrive errors gracefully with try/catch (network issues, permission errors)
 - Return standardized `ServerActionResult` from server actions
-- Use `revalidatePath()` after mutations to update cached data
+- Use `revalidatePath('/')` after mutations to update cached data
+- Trust the periodic sync mechanism - don't force sync after every change
 
 ### Imports
 - Always use path aliases (`@/`) instead of relative imports
@@ -431,13 +507,22 @@ export const metadata: Metadata = {
 
 ## Important Files
 
+- **`ONEDRIVE_SETUP.md`** - Detailed OneDrive and Azure AD setup guide (START HERE)
+- **`.env.local.example`** - Environment variable template
 - `STYLE_GUIDE.md` - Comprehensive design system documentation
 - `AGENTS.md` - Repository guidelines and conventions
 - `components.json` - shadcn/ui configuration
-- `drizzle.config.ts` - Drizzle ORM configuration
 - `app/globals.css` - Tailwind config and theme variables
+- `lib/auth.ts` - NextAuth configuration with Azure AD
+- `lib/onedrive/client.ts` - Microsoft Graph API client
+- `lib/onedrive/service.ts` - OneDrive Excel operations
+- `lib/onedrive/sync-manager.ts` - Periodic sync and caching
 - `lib/utils.ts` - Shared utility functions
-- `lib/db/schema.ts` - Database schema definition
-- `lib/db/queries.ts` - Database query functions
 - `types/pallet.ts` - Domain type definitions
+- `types/next-auth.d.ts` - NextAuth type extensions
 - `tsconfig.json` - TypeScript configuration with path aliases
+
+**Legacy (Optional)**:
+- `lib/db/schema.ts` - Database schema definition (can be removed)
+- `lib/db/queries.ts` - Database query functions (can be removed)
+- `drizzle.config.ts` - Drizzle ORM configuration (can be removed)
