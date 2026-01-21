@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { login } from '../actions/auth';
+import { useRouter } from 'next/navigation';
+import { login } from '@/app/actions/auth';
 
 export function LoginForm() {
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   async function handleSubmit(formData: FormData) {
     setLoading(true);
@@ -15,7 +17,9 @@ export function LoginForm() {
       const result = await login(formData);
       if (result?.error) {
         setError(result.error);
+        return;
       }
+      router.refresh();
     } catch (err) {
       setError('An error occurred during login');
     } finally {
