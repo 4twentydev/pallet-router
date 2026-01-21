@@ -1,79 +1,140 @@
 # Pallet Tracker
 
-A modern manufacturing pallet tracking application built with Next.js, integrating with Microsoft OneDrive for real-time data synchronization.
+A Next.js application for tracking manufacturing pallets with PIN-based authentication and admin capabilities.
 
 ## Features
 
-- 📊 **OneDrive Integration**: Excel file on OneDrive as single source of truth
-- 🔄 **Automatic Sync**: Periodic syncing every 2 minutes with manual sync option
-- 🔐 **Microsoft Authentication**: Secure OAuth login with Azure AD
-- ⚡ **Real-time Updates**: Instant UI updates with background sync to OneDrive
-- 🎨 **Modern UI**: Built with React 19, Tailwind CSS 4, and shadcn/ui components
-- 🌙 **Dark Mode**: Full light/dark theme support
-- 📱 **Responsive**: Works on desktop, tablet, and mobile devices
+- 🔐 **PIN Authentication** - Secure login with hashed PIN codes
+- 👤 **User Roles** - Admin and regular user access levels
+- ➕ **Manual Entry** - Admin interface to add pallets one at a time
+- 📁 **File Import** - Bulk import from XLSX or CSV files
+- ✅ **Status Tracking** - Mark pallets as completed/pending
+- 🎨 **Dark Mode** - Toggle between light and dark themes
+- 💾 **PostgreSQL** - Reliable data storage with Drizzle ORM
 
-## Quick Start
+## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ and pnpm
-- Microsoft account with OneDrive
-- Azure AD App Registration (see setup guide)
+- Node.js 18+ and pnpm installed
+- PostgreSQL database (Vercel Postgres recommended)
 
-### Setup
+### Installation
 
-1. **Follow the detailed setup guide**: See [`ONEDRIVE_SETUP.md`](./ONEDRIVE_SETUP.md) for complete Azure AD configuration
+1. **Clone the repository**
+   ```bash
+   git clone <your-repo-url>
+   cd pallet-router
+   ```
 
-2. **Install dependencies**:
+2. **Install dependencies**
    ```bash
    pnpm install
    ```
 
-3. **Configure environment variables**:
+3. **Set up environment variables**
+
+   Create a `.env.local` file:
    ```bash
    cp .env.local.example .env.local
-   # Edit .env.local with your Azure AD credentials
    ```
 
-4. **Upload Excel file to OneDrive**:
-   - Upload `Release-CheckList.xlsx` to your OneDrive root folder
-   - Ensure it has a sheet named `PalletTracker` with the correct structure
+   Update `.env.local` with your values:
+   ```env
+   # Database connection string (get from Vercel Postgres or your PostgreSQL provider)
+   POSTGRES_URL=postgresql://username:password@host:port/database
 
-5. **Start the development server**:
+   # Session secret (generate with: openssl rand -base64 32)
+   SESSION_SECRET=your_random_secret_here
+   ```
+
+4. **Set up the database**
+
+   Push the database schema:
+   ```bash
+   pnpm db:push
+   ```
+
+5. **Create an admin user**
+
+   ```bash
+   pnpm tsx scripts/create-admin.ts "Admin Name" "1234"
+   ```
+
+   Replace "Admin Name" and "1234" with your desired name and PIN (minimum 4 characters).
+
+6. **Start the development server**
    ```bash
    pnpm dev
    ```
 
-6. **Open the app**: Visit [http://localhost:3000](http://localhost:3000)
+7. **Open the app**
 
-7. **Sign in**: Click "Sign in with Microsoft" and authorize OneDrive access
+   Navigate to [http://localhost:3000](http://localhost:3000) and sign in with your admin PIN!
 
-## How It Works
+## Usage
 
-### Data Flow
+### Signing In
 
-1. **Authentication**: Users sign in with their Microsoft account using OAuth
-2. **OneDrive Access**: App gets permission to read/write Excel files on OneDrive
-3. **Data Loading**: Excel file is downloaded and parsed into pallet data
-4. **Local Cache**: Data is cached in memory for fast access
-5. **User Updates**: Changes are stored locally and synced to OneDrive every 2 minutes
-6. **Conflict Resolution**: OneDrive version takes precedence during sync
+1. Enter your PIN on the login screen
+2. Click "Sign In"
 
-### Technology Stack
+### Admin Features
 
-- **Frontend**: Next.js 16, React 19, TypeScript
-- **Styling**: Tailwind CSS 4, shadcn/ui components
-- **Authentication**: NextAuth.js with Azure AD
-- **Data Source**: Microsoft OneDrive (Excel via Graph API)
-- **Excel Processing**: ExcelJS
+Admins have access to the Admin Panel with two main features:
 
-## Documentation
+#### Manual Entry
+- Add pallets one at a time
+- Fill in job number, release number, pallet number
+- Optional: size, elevation, accessories, notes
+- Mark as completed immediately if needed
 
-- **[ONEDRIVE_SETUP.md](./ONEDRIVE_SETUP.md)** - Complete setup guide for Azure AD and OneDrive
-- **[CLAUDE.md](./CLAUDE.md)** - Technical documentation and architecture guide
-- **[STYLE_GUIDE.md](./STYLE_GUIDE.md)** - UI design system and component patterns
+#### File Import
+- Upload XLSX or CSV files
+- Expected columns: Job Number, Release Number, Pallet Number, Size, Elevation, Made, Acc List, Shipped Date, Notes
+- Option to replace all existing pallets or add to existing data
+- Supports bulk imports of hundreds or thousands of pallets
 
-## Development
+### Tracking Pallets
+
+All users can:
+- View all pallets grouped by job and release
+- Toggle individual pallet completion status
+- Use bulk actions to mark multiple pallets at once
+- Filter and search through pallets
+- See progress indicators for each job/release
+
+## File Format for Imports
+
+### XLSX Format
+- Sheet name: "PalletTracker" (or first sheet will be used)
+- Columns (in order):
+  1. Job Number (required)
+  2. Release Number (required)
+  3. Pallet Number (required)
+  4. Size (optional)
+  5. Elevation (optional)
+  6. Made (use "X" or "true" for completed, empty for pending)
+  7. Acc List (optional)
+  8. Shipped Date (optional)
+  9. Notes (optional)
+
+### CSV Format
+- Same column order as XLSX
+- First row is header (will be skipped)
+- Use commas as separators
+- Quote values that contain commas
+
+### Example
+
+```csv
+Job Number,Release Number,Pallet Number,Size,Elevation,Made,Acc List,Shipped Date,Notes
+24-101,R1,1,48x40,A,X,Straps,2024-01-15,Completed
+24-101,R1,2,48x40,A,,Straps,,In progress
+24-101,R2,1,48x48,B,,,2024-01-16,Rush order
+```
+
+## Development Commands
 
 ```bash
 # Start development server
@@ -87,51 +148,95 @@ pnpm start
 
 # Run linter
 pnpm lint
+
+# Database commands
+pnpm db:generate  # Generate migrations from schema
+pnpm db:push      # Push schema changes to database
+pnpm db:studio    # Open Drizzle Studio (database GUI)
 ```
+
+## Managing Users
+
+### Create Additional Users
+
+You can create more users (admin or regular) using the script:
+
+```bash
+# Create an admin
+pnpm tsx scripts/create-admin.ts "Admin Name" "adminPIN"
+
+# The script creates admin users by default
+# To create regular users, modify the script or add them via database
+```
+
+### User Roles
+
+- **Admin**: Full access including Admin Panel, manual entry, and file imports
+- **User**: Can view and toggle pallet status, but cannot add new pallets
+
+## Technology Stack
+
+- **Framework**: Next.js 16 with App Router
+- **React**: Version 19
+- **TypeScript**: Version 5
+- **Database**: PostgreSQL with Drizzle ORM
+- **Authentication**: iron-session with bcryptjs for PIN hashing
+- **File Processing**: ExcelJS for XLSX, custom CSV parser
+- **Styling**: Tailwind CSS 4
+- **UI Components**: shadcn/ui compatible (New York style)
 
 ## Project Structure
 
 ```
 app/
-  actions/          # Server actions for OneDrive operations
-  api/auth/         # NextAuth OAuth endpoints
-  components/       # React components
+  actions/          # Server actions
+    auth.ts         # Authentication actions
+    pallets.ts      # Pallet CRUD actions
+  components/       # UI components
+    admin-panel.tsx # Admin interface
+    auth-status.tsx # Auth display
+    login-form.tsx  # PIN login
+    pallet-*.tsx    # Pallet UI components
+  page.tsx          # Home page
+  layout.tsx        # Root layout
 lib/
-  auth.ts           # NextAuth configuration
-  onedrive/         # OneDrive integration layer
-    client.ts       # Microsoft Graph client
-    service.ts      # Excel read/write operations
-    sync-manager.ts # Periodic sync and caching
-types/
-  pallet.ts         # TypeScript type definitions
-  next-auth.d.ts    # NextAuth type extensions
+  db/               # Database layer
+    schema.ts       # Drizzle schema
+    queries.ts      # Pallet queries
+    user-queries.ts # User queries
+  session.ts        # Session management
+  import-utils.ts   # File parsing
+scripts/
+  create-admin.ts   # Admin creation script
 ```
 
-## Troubleshooting
+## Security Notes
 
-### Common Issues
+- PINs are hashed with bcryptjs (10 salt rounds)
+- Sessions are encrypted with iron-session
+- Admin-only actions are protected by `requireAdmin()` middleware
+- All database queries use parameterized statements (Drizzle ORM)
 
-**"Not authenticated" error**
-- Verify Azure AD credentials in `.env.local`
-- Try signing out and signing back in
+## Deployment
 
-**"File not found" error**
-- Check that the Excel file exists on OneDrive
-- Verify `ONEDRIVE_FILE_PATH` matches the actual file path
+### Vercel (Recommended)
 
-**Permission errors**
-- Ensure `Files.ReadWrite.All` permission is granted in Azure Portal
-- Try revoking and re-granting consent
+1. Push your code to GitHub
+2. Connect your repository to Vercel
+3. Add environment variables in Vercel dashboard:
+   - `POSTGRES_URL` (from Vercel Postgres)
+   - `SESSION_SECRET` (generate with `openssl rand -base64 32`)
+4. Deploy!
+5. After deployment, create admin user:
+   ```bash
+   vercel env pull .env.local
+   pnpm tsx scripts/create-admin.ts "Admin" "yourpin"
+   ```
 
-See [ONEDRIVE_SETUP.md](./ONEDRIVE_SETUP.md) for detailed troubleshooting.
+## Support
+
+For issues or questions, please open an issue in the repository.
 
 ## License
 
 This project is proprietary software for Elward Systems.
-
-## Support
-
-For issues or questions, refer to:
-- Azure Portal for authentication configuration
-- Browser console for client-side errors
-- Server logs for backend issues
