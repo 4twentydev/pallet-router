@@ -20,6 +20,7 @@ if (!process.env.SESSION_SECRET && !isProduction) {
   console.warn('[session] SESSION_SECRET is missing. Using a development-only fallback secret.');
 }
 
+
 const sessionOptions = {
   password: resolvedSessionSecret,
   cookieName: 'pallet-tracker-session',
