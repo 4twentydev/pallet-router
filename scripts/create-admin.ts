@@ -27,12 +27,18 @@ async function main() {
     console.log('PIN:', pin);
     console.log('\nYou can now sign in with this PIN.');
   } catch (error) {
-    const errorMessage = String(error);
-    console.error('❌ Failed to create admin user:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('❌ Failed to create admin user.');
+    console.error(errorMessage);
 
     if (errorMessage.includes('relation "users" does not exist') || errorMessage.includes('42P01')) {
       console.error('\nThe database schema is missing. Run the following to create tables:');
       console.error('  pnpm db:push');
+    }
+
+    if (errorMessage.includes('POSTGRES_URL') || errorMessage.includes('DATABASE_URL')) {
+      console.error('\nThe database connection string is missing.');
+      console.error('Set POSTGRES_URL in .env.local before running this script.');
     }
 
     process.exit(1);
