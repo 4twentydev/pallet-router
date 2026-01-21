@@ -1,4 +1,5 @@
 import { getIronSession, IronSession } from 'iron-session';
+import { PHASE_PRODUCTION_BUILD } from 'next/constants';
 import { cookies } from 'next/headers';
 
 export interface SessionData {
@@ -9,6 +10,7 @@ export interface SessionData {
 }
 
 const isProduction = process.env.NODE_ENV === 'production';
+const isBuildPhase = process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD;
 const devFallbackSecret = 'dev-session-secret-change-me-please-32-chars';
 const resolvedSessionSecret = process.env.SESSION_SECRET ?? (isProduction ? undefined : devFallbackSecret);
 
@@ -24,6 +26,16 @@ const baseSessionOptions = {
 
 function resolveSessionOptions() {
   if (!resolvedSessionSecret) {
+    if (isBuildPhase) {
+      console.warn(
+        '[session] SESSION_SECRET is missing during build. Using a temporary build-time secret.'
+      );
+      return {
+        ...baseSessionOptions,
+        password: devFallbackSecret,
+      };
+    }
+
     throw new Error('SESSION_SECRET is not set. Add it to .env.local before running the app.');
   }
 
