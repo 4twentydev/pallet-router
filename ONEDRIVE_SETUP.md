@@ -82,7 +82,7 @@ This guide will help you set up OneDrive integration for the Pallet Tracker appl
    NEXTAUTH_URL=http://localhost:3000
 
    # Generate a random secret (run: openssl rand -base64 32)
-   NEXTAUTH_SECRET=your_generated_secret
+   NEXTAUTH_SECRET=w9cvw2GLKFf1iqFCr16J0rDvS+xZOv2ubCHefMxEd20=
 
    # Path to your Excel file on OneDrive (default is root)
    ONEDRIVE_FILE_PATH=/Release-CheckList.xlsx
