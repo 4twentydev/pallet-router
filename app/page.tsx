@@ -1,19 +1,19 @@
 import { getPalletData } from './actions/pallets';
+import { getSessionData } from './actions/auth';
 import PalletTracker from './components/pallet-tracker';
 import ThemeToggle from './components/theme-toggle';
 import { AuthStatus } from './components/auth-status';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { LoginForm } from './components/login-form';
 
-// Force dynamic rendering - file hash must be computed fresh on each request
+// Force dynamic rendering
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  const session = await getServerSession(authOptions);
+  const session = await getSessionData();
   let initialData = null;
 
   // Only load data if user is authenticated
-  if (session?.accessToken) {
+  if (session.isLoggedIn) {
     try {
       initialData = await getPalletData();
       console.log('[Home] Loaded pallets:', initialData.pallets.length);
@@ -39,28 +39,34 @@ export default async function Home() {
             </div>
             <ThemeToggle />
           </div>
-          <AuthStatus />
+          <AuthStatus
+            isLoggedIn={session.isLoggedIn}
+            name={session.name}
+            role={session.role}
+          />
         </div>
       </header>
 
       {/* Main content */}
       <main className="flex-1">
         <div className="app-shell app-shell-main">
-          {initialData ? (
-            <PalletTracker initialData={initialData} />
-          ) : (
-            <div className="flex items-center justify-center min-h-[400px]">
-              <div className="text-center">
-                <h2 className="text-xl font-semibold text-strong mb-2">
-                  Welcome to Pallet Tracker
-                </h2>
-                <p className="text-muted">
-                  {session
-                    ? "Loading your pallet data from OneDrive..."
-                    : "Please sign in to access your pallet data from OneDrive"}
-                </p>
+          {session.isLoggedIn ? (
+            initialData ? (
+              <PalletTracker initialData={initialData} />
+            ) : (
+              <div className="flex items-center justify-center min-h-[400px]">
+                <div className="text-center">
+                  <h2 className="text-xl font-semibold text-strong mb-2">
+                    Loading pallet data...
+                  </h2>
+                  <p className="text-muted">
+                    Please wait while we load your pallets
+                  </p>
+                </div>
               </div>
-            </div>
+            )
+          ) : (
+            <LoginForm />
           )}
         </div>
       </main>

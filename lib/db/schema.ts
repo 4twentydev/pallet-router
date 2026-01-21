@@ -1,5 +1,14 @@
 import { pgTable, serial, text, boolean, timestamp } from 'drizzle-orm/pg-core';
 
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  pin: text('pin').notNull(), // Hashed PIN
+  role: text('role').notNull().default('user'), // 'admin' or 'user'
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 export const pallets = pgTable('pallets', {
   id: serial('id').primaryKey(),
   jobNumber: text('job_number').notNull(),
@@ -16,5 +25,7 @@ export const pallets = pgTable('pallets', {
 });
 
 // Type inference helpers
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
 export type Pallet = typeof pallets.$inferSelect;
 export type NewPallet = typeof pallets.$inferInsert;

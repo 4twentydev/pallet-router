@@ -1,62 +1,40 @@
-"use client";
+'use client';
 
-import { useSession, signIn, signOut } from "next-auth/react";
-import { useState } from "react";
-import { forceSyncWithOneDrive } from "@/app/actions/pallets";
+import { logout } from '../actions/auth';
+import { AdminPanel } from './admin-panel';
 
-export function AuthStatus() {
-  const { data: session, status } = useSession();
-  const [isSyncing, setIsSyncing] = useState(false);
+interface AuthStatusProps {
+  isLoggedIn: boolean;
+  name?: string;
+  role?: 'admin' | 'user';
+}
 
-  const handleSync = async () => {
-    setIsSyncing(true);
-    try {
-      await forceSyncWithOneDrive();
-    } catch (error) {
-      console.error("Sync failed:", error);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  if (status === "loading") {
-    return <div className="text-sm text-muted">Loading...</div>;
+export function AuthStatus({ isLoggedIn, name, role }: AuthStatusProps) {
+  if (!isLoggedIn) {
+    return null;
   }
 
-  if (!session) {
-    return (
-      <div className="flex items-center gap-4">
-        <p className="text-sm text-muted">
-          Sign in to access your OneDrive pallet data
-        </p>
-        <button
-          onClick={() => signIn("azure-ad")}
-          className="px-4 py-2 bg-accent-primary text-white rounded-full hover:opacity-90 transition-opacity"
-        >
-          Sign in with Microsoft
-        </button>
-      </div>
-    );
+  async function handleLogout() {
+    await logout();
   }
 
   return (
     <div className="flex items-center gap-4">
-      <div className="flex flex-col">
-        <p className="text-sm text-strong">
-          {session.user?.name || session.user?.email}
-        </p>
-        <p className="text-xs text-muted">Connected to OneDrive</p>
+      <div className="text-sm">
+        <span className="text-muted">Signed in as </span>
+        <span className="font-medium text-strong">{name}</span>
+        {role === 'admin' && (
+          <span className="ml-2 rounded-full bg-accent-secondary/10 px-2 py-0.5 text-xs font-medium text-accent-secondary">
+            Admin
+          </span>
+        )}
       </div>
+
+      {role === 'admin' && <AdminPanel />}
+
       <button
-        onClick={handleSync}
-        disabled={isSyncing}
-        className="px-3 py-1 text-sm bg-surface border border-border rounded-full hover:bg-surface-muted transition-colors disabled:opacity-50"
-      >
-        {isSyncing ? "Syncing..." : "Sync Now"}
-      </button>
-      <button
-        onClick={() => signOut()}
-        className="px-3 py-1 text-sm bg-surface border border-border rounded-full hover:bg-surface-muted transition-colors"
+        onClick={handleLogout}
+        className="rounded-full border border-border px-4 py-2 text-sm font-medium text-muted transition-all hover:border-strong hover:text-strong"
       >
         Sign Out
       </button>
