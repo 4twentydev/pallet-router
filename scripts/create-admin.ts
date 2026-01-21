@@ -1,4 +1,9 @@
+import { config } from 'dotenv';
+import { resolve } from 'path';
 import { createUser } from '../lib/db/user-queries';
+
+// Load environment variables from .env.local
+config({ path: resolve(process.cwd(), '.env.local') });
 
 /**
  * Script to create the first admin user
@@ -26,6 +31,7 @@ async function main() {
     console.log('Role:', user.role);
     console.log('PIN:', pin);
     console.log('\nYou can now sign in with this PIN.');
+    process.exit(0);
   } catch (error) {
     console.error('❌ Failed to create admin user:', error);
     process.exit(1);
