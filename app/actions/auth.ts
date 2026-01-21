@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/session';
 import { authenticateUser } from '@/lib/db/user-queries';
 
-export async function login(formData: FormData) {
+export async function login(formData: FormData): Promise<{ error?: string; success?: true }> {
   const pin = formData.get('pin') as string;
 
   if (!pin) {
@@ -33,7 +33,7 @@ export async function login(formData: FormData) {
   session.isLoggedIn = true;
   await session.save();
 
-  redirect('/');
+  return { success: true };
 }
 
 export async function logout() {
