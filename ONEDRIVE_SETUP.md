@@ -151,6 +151,21 @@ The app expects an Excel file with a sheet named `PalletTracker` with these colu
 
 ## Troubleshooting
 
+### Login Loop (Screen Flashes and Returns to Login)
+
+This happens when the redirect URI doesn't match between your app and Azure AD:
+
+**Fix for Local Development:**
+1. Verify `.env.local` has: `NEXTAUTH_URL=http://localhost:3000`
+2. In Azure Portal > App Registration > Authentication, verify redirect URI is **exactly**: `http://localhost:3000/api/auth/callback/azure-ad`
+3. Restart your dev server after changing `.env.local`
+4. Clear browser cache and try signing in again
+
+**Fix for Production:**
+1. In `.env.local`, set: `NEXTAUTH_URL=https://your-exact-domain.com`
+2. In Azure Portal, add redirect URI: `https://your-exact-domain.com/api/auth/callback/azure-ad`
+3. Both URLs must match exactly (including http vs https, trailing slashes, etc.)
+
 ### "Not authenticated" Error
 
 - Make sure you're signed in with Microsoft

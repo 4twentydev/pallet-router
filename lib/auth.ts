@@ -16,9 +16,10 @@ export const authOptions: AuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, account }) {
+    async jwt({ token, account, user }) {
       // Persist the OAuth access_token to the token right after signin
       if (account) {
+        console.log("[Auth] New sign-in, storing tokens");
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
         token.expiresAt = account.expires_at;
@@ -29,6 +30,7 @@ export const authOptions: AuthOptions = {
         return token;
       }
 
+      console.log("[Auth] Token expired, refreshing...");
       return await refreshAccessToken(token);
     },
     async session({ session, token }) {
@@ -37,11 +39,16 @@ export const authOptions: AuthOptions = {
       session.error = token.error as string | undefined;
       return session;
     },
+    async signIn({ user, account, profile }) {
+      console.log("[Auth] Sign-in callback triggered for:", user.email);
+      return true;
+    },
   },
   pages: {
     signIn: "/",
     error: "/",
   },
+  debug: process.env.NODE_ENV === "development",
 };
 
 async function refreshAccessToken(token: JWT) {
